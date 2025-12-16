@@ -1,8 +1,17 @@
-# Majora's Mask: Recompiled Mod Template
+# Majora's Mask: Recompiled More Rain
 
-This is an example mod for Majora's Mask: Recompiled that can be used as a template for creating mods. It has a basic build system, headers, sample code, and a mod config toml.
+Makes Day 2 feel more realistic by raining in more areas.
+List of all the areas it can now rain:
 
-Example code for using the recompui API to build ingame UI can be found in the `ui-example` branch.
+- Pirates Fortress.
+- Great Bay.
+- Zora Cape.
+- Termina Field.
+- Path to Southern Swamp.
+- Milk Road.
+- Gorman Track.
+- Spring Mountain Village.
+- Spring Goron Village.
 
 ### Writing mods
 See [this document](https://hackmd.io/fMDiGEJ9TBSjomuZZOgzNg) for an explanation of the modding framework, including how to write function patches and perform interop between different mods.
