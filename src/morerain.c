@@ -1,10 +1,22 @@
-#include "modding.h"
+﻿#include "modding.h"
 #include "global.h"
 #include "recomputils.h"
 #include "recompconfig.h"
+#include "dependency.h"
 
-static s16 lastSceneId = -1;
+int RAIN_INTENSITY_TARGET = 60;
+#define RAIN_FADE_SPEED 1
+int RainUpgradeModActive;
+
 static u8 rainActive = 0;
+static s16 lastScene = -1;   // <-- scene tracking
+
+
+RECOMP_HOOK("Play_Init")
+void depcheck() {
+    RainUpgradeModActive = recomp_is_dependency_met("mm_recomp_upgraded_rain") == DEPENDENCY_STATUS_FOUND;
+}
+
 
 static s16 rainScenes[] = {
     SCENE_00KEIKOKU,
@@ -20,17 +32,19 @@ static s16 rainScenes[] = {
     SCENE_CLOCKTOWER,
     SCENE_ALLEY,
     SCENE_20SICHITAI2,
-    SCENE_24KEMONOMITI,
     SCENE_20SICHITAI,
     SCENE_21MITURINMAE,
     SCENE_F01,
     SCENE_ROMANYMAE,
     SCENE_KOEPONARACE,
-    SCENE_TORIDE
+    SCENE_TORIDE,
+    SCENE_35TAKI,
+    SCENE_F01C,
+    SCENE_F01_B
 };
 
 static s32 IsRainScene(s16 sceneId) {
-    for (size_t i = 0; i < sizeof(rainScenes) / sizeof(rainScenes[0]); i++) {
+    for (size_t i = 0; i < ARRAY_COUNT(rainScenes); i++) {
         if (sceneId == rainScenes[i]) {
             return 1;
         }
@@ -38,50 +52,86 @@ static s32 IsRainScene(s16 sceneId) {
     return 0;
 }
 
-
 static s32 IsRainTime(void) {
-    if (CURRENT_DAY != 2) {
-        return 0;
-    }
-    return (CURRENT_TIME >= CLOCK_TIME(7, 0) && CURRENT_TIME < CLOCK_TIME(17, 30));
+    if (CURRENT_DAY != 2) return 0;
+
+    return (CURRENT_TIME >= CLOCK_TIME((int)recomp_get_config_double("start_hour"), 0) &&
+        CURRENT_TIME < CLOCK_TIME((int)recomp_get_config_double("end_hour"), 30));
 }
+
 
 RECOMP_HOOK("Play_Update")
 void more_rain(PlayState* play) {
 
-    
-    if (play->sceneId != lastSceneId) {
-        lastSceneId = play->sceneId;
-        rainActive = 0; 
+    /* -----------------------------------------
+       SCENE TRANSITION FIX
+       ----------------------------------------- */
+    if (play->sceneId != lastScene) {
+        lastScene = play->sceneId;
+
+        // Engine wiped weather — force resync
+        rainActive = 0;
+
+        play->envCtx.precipitation[PRECIP_RAIN_CUR] = 0;
+        play->envCtx.precipitation[PRECIP_RAIN_MAX] = 0;
+        play->envCtx.stormState = STORM_STATE_OFF;
+        play->envCtx.lightningState = LIGHTNING_OFF;
+        gWeatherMode = WEATHER_MODE_CLEAR;
+    }
+
+    if (RainUpgradeModActive) {
+        RAIN_INTENSITY_TARGET = RAIN_INTENSITY();
     }
 
     u8 shouldRain = IsRainScene(play->sceneId) && IsRainTime();
 
-    
+    /* -----------------------------------------
+       START RAIN
+       ----------------------------------------- */
     if (shouldRain && !rainActive) {
-        
         rainActive = 1;
+
         gWeatherMode = WEATHER_MODE_RAIN;
-        play->envCtx.stormState = STORM_STATE_ON;
-        play->envCtx.lightningState = LIGHTNING_ON;
-
-        if (play->envCtx.precipitation[PRECIP_RAIN_CUR] < 60) {
-            play->envCtx.precipitation[PRECIP_RAIN_CUR] = 0;
-        }
-        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] < 60) {
-            play->envCtx.precipitation[PRECIP_RAIN_MAX] = 60;
-        }
-
         Environment_PlayStormNatureAmbience(play);
 
+        play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
+        play->envCtx.lightningState = LIGHTNING_ON;
     }
-    else if (!shouldRain && rainActive) {
-        
-        rainActive = 0;
-        gWeatherMode = WEATHER_MODE_CLEAR;
-        play->envCtx.stormState = STORM_STATE_OFF;
-        play->envCtx.lightningState = LIGHTNING_OFF;
-        play->envCtx.precipitation[PRECIP_RAIN_CUR] = 0;
-        play->envCtx.precipitation[PRECIP_RAIN_MAX] = 0;
+
+    /* -----------------------------------------
+       FADE RAIN IN
+       ----------------------------------------- */
+    if (rainActive && play->envCtx.precipitation[PRECIP_RAIN_CUR] < play->envCtx.precipitation[PRECIP_RAIN_MAX]) {
+        u8 diff = play->envCtx.precipitation[PRECIP_RAIN_MAX] - play->envCtx.precipitation[PRECIP_RAIN_CUR];
+        play->envCtx.precipitation[PRECIP_RAIN_CUR] += (diff < RAIN_FADE_SPEED) ? diff : RAIN_FADE_SPEED;
+    }
+
+    if (play->envCtx.precipitation[PRECIP_RAIN_CUR] >= 25) {
+        play->envCtx.stormState = STORM_STATE_ON;
+    }
+
+    /* -----------------------------------------
+       FADE RAIN OUT
+       ----------------------------------------- */
+    if (!shouldRain && rainActive) {
+
+        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] > 0 && (play->state.frames % 4 == 0)) {
+            play->envCtx.precipitation[PRECIP_RAIN_MAX]--;
+
+            if (play->envCtx.precipitation[PRECIP_RAIN_MAX] <= 8) {
+                Environment_StopStormNatureAmbience(play);
+            }
+
+            if (play->envCtx.precipitation[PRECIP_RAIN_CUR] > play->envCtx.precipitation[PRECIP_RAIN_MAX]) {
+                play->envCtx.precipitation[PRECIP_RAIN_CUR] = play->envCtx.precipitation[PRECIP_RAIN_MAX];
+            }
+        }
+
+        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] == 0) {
+            rainActive = 0;
+            play->envCtx.stormState = STORM_STATE_OFF;
+            play->envCtx.lightningState = LIGHTNING_OFF;
+            gWeatherMode = WEATHER_MODE_CLEAR;
+        }
     }
 }
