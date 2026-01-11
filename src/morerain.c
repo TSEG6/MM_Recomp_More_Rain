@@ -9,7 +9,7 @@ int RAIN_INTENSITY_TARGET = 60;
 int RainUpgradeModActive;
 
 static u8 rainActive = 0;
-static s16 lastScene = -1;   // <-- scene tracking
+static s16 lastScene = -1;
 
 
 RECOMP_HOOK("Play_Init")
@@ -63,13 +63,11 @@ static s32 IsRainTime(void) {
 RECOMP_HOOK("Play_Update")
 void more_rain(PlayState* play) {
 
-    /* -----------------------------------------
-       SCENE TRANSITION FIX
-       ----------------------------------------- */
+
     if (play->sceneId != lastScene) {
         lastScene = play->sceneId;
 
-        // Engine wiped weather — force resync
+
         rainActive = 0;
 
         play->envCtx.precipitation[PRECIP_RAIN_CUR] = 0;
@@ -85,9 +83,7 @@ void more_rain(PlayState* play) {
 
     u8 shouldRain = IsRainScene(play->sceneId) && IsRainTime();
 
-    /* -----------------------------------------
-       START RAIN
-       ----------------------------------------- */
+
     if (shouldRain && !rainActive) {
         rainActive = 1;
 
@@ -98,9 +94,7 @@ void more_rain(PlayState* play) {
         play->envCtx.lightningState = LIGHTNING_ON;
     }
 
-    /* -----------------------------------------
-       FADE RAIN IN
-       ----------------------------------------- */
+
     if (rainActive && play->envCtx.precipitation[PRECIP_RAIN_CUR] < play->envCtx.precipitation[PRECIP_RAIN_MAX]) {
         u8 diff = play->envCtx.precipitation[PRECIP_RAIN_MAX] - play->envCtx.precipitation[PRECIP_RAIN_CUR];
         play->envCtx.precipitation[PRECIP_RAIN_CUR] += (diff < RAIN_FADE_SPEED) ? diff : RAIN_FADE_SPEED;
@@ -110,9 +104,7 @@ void more_rain(PlayState* play) {
         play->envCtx.stormState = STORM_STATE_ON;
     }
 
-    /* -----------------------------------------
-       FADE RAIN OUT
-       ----------------------------------------- */
+
     if (!shouldRain && rainActive) {
 
         if (play->envCtx.precipitation[PRECIP_RAIN_MAX] > 0 && (play->state.frames % 4 == 0)) {
