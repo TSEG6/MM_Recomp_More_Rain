@@ -93,15 +93,13 @@ void more_rain(PlayState* play) {
     if (shouldRain) {
         if (!rainActive) {
             rainActive = 1;
+            Environment_PlayStormNatureAmbience(play);
         }
+
         gWeatherMode = WEATHER_MODE_RAIN;
         play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
         play->envCtx.lightningState = LIGHTNING_ON;
         play->envCtx.stormState = STORM_STATE_ON;
-
-        if ((play->state.frames % 20) == 0) {
-            Environment_PlayStormNatureAmbience(play);
-        }
     }
 
 
@@ -117,19 +115,22 @@ void more_rain(PlayState* play) {
 
     if (!shouldRain && rainActive) {
 
-        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] > 0 && (play->state.frames % 4 == 0)) {
-            play->envCtx.precipitation[PRECIP_RAIN_MAX]--;
+        if ((play->state.frames % 4) == 0) {
+
+            if (play->envCtx.precipitation[PRECIP_RAIN_MAX] > 0) {
+                play->envCtx.precipitation[PRECIP_RAIN_MAX]--;
+            }
+
+            if (play->envCtx.precipitation[PRECIP_RAIN_CUR] > 0) {
+                play->envCtx.precipitation[PRECIP_RAIN_CUR]--;
+            }
 
             if (play->envCtx.precipitation[PRECIP_RAIN_MAX] <= 8) {
                 Environment_StopStormNatureAmbience(play);
             }
-
-            if (play->envCtx.precipitation[PRECIP_RAIN_CUR] > play->envCtx.precipitation[PRECIP_RAIN_MAX]) {
-                play->envCtx.precipitation[PRECIP_RAIN_CUR] = play->envCtx.precipitation[PRECIP_RAIN_MAX];
-            }
         }
 
-        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] == 0) {
+        if (play->envCtx.precipitation[PRECIP_RAIN_CUR] == 0) {
             rainActive = 0;
             play->envCtx.stormState = STORM_STATE_OFF;
             play->envCtx.lightningState = LIGHTNING_OFF;
