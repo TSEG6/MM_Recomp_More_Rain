@@ -3,11 +3,11 @@
 #include "recomputils.h"
 #include "recompconfig.h"
 #include "dependency.h"
+#include "z_en_test4.h"
 
 int RAIN_INTENSITY_TARGET = 60;
 #define RAIN_FADE_SPEED 1
 int RainUpgradeModActive;
-
 static u8 rainActive = 0;
 static s16 lastScene = -1;
 
@@ -43,6 +43,7 @@ static s16 rainScenes[] = {
     SCENE_F01_B
 };
 
+
 static s32 IsRainScene(s16 sceneId) {
     for (size_t i = 0; i < ARRAY_COUNT(rainScenes); i++) {
         if (sceneId == rainScenes[i]) {
@@ -51,6 +52,7 @@ static s32 IsRainScene(s16 sceneId) {
     }
     return 0;
 }
+
 
 static s32 IsRainTime(void) {
     if (CURRENT_DAY != 2) return 0;
@@ -80,18 +82,26 @@ void more_rain(PlayState* play) {
     if (RainUpgradeModActive) {
         RAIN_INTENSITY_TARGET = RAIN_INTENSITY();
     }
+    else {
+
+        // RAIN_INTENSITY_TARGET = (int)recomp_get_config_double("rain_strength");
+    }
 
     u8 shouldRain = IsRainScene(play->sceneId) && IsRainTime();
 
 
-    if (shouldRain && !rainActive) {
-        rainActive = 1;
-
+    if (shouldRain) {
+        if (!rainActive) {
+            rainActive = 1;
+        }
         gWeatherMode = WEATHER_MODE_RAIN;
-        Environment_PlayStormNatureAmbience(play);
-
         play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
         play->envCtx.lightningState = LIGHTNING_ON;
+        play->envCtx.stormState = STORM_STATE_ON;
+
+        if ((play->state.frames % 20) == 0) {
+            Environment_PlayStormNatureAmbience(play);
+        }
     }
 
 
@@ -125,5 +135,40 @@ void more_rain(PlayState* play) {
             play->envCtx.lightningState = LIGHTNING_OFF;
             gWeatherMode = WEATHER_MODE_CLEAR;
         }
+    }
+}
+
+// From old mod All Day Rain
+
+RECOMP_PATCH void EnTest4_UpdateWeatherClear(EnTest4* this, PlayState* play) {
+    if ((CURRENT_DAY == 2) && (CURRENT_TIME >= CLOCK_TIME((int)recomp_get_config_double("start_hour"), 30)) && (CURRENT_TIME < CLOCK_TIME((int)recomp_get_config_double("end_hour"), 59)) &&
+        (play->envCtx.precipitation[PRECIP_SNOW_CUR] == 0)) {
+        gWeatherMode = WEATHER_MODE_RAIN;
+        Environment_PlayStormNatureAmbience(play);
+        play->envCtx.lightningState = LIGHTNING_ON;
+        play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
+    }
+    else if ((play->envCtx.precipitation[PRECIP_RAIN_MAX] != 0) && ((play->state.frames % 4) == 0)) {
+        play->envCtx.precipitation[PRECIP_RAIN_MAX]--;
+        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] == 8) {
+            Environment_StopStormNatureAmbience(play);
+        }
+    }
+
+    if (gWeatherMode == WEATHER_MODE_RAIN) {
+        this->weather = THREEDAY_WEATHER_RAIN;
+    }
+}
+
+RECOMP_PATCH void EnTest4_UpdateWeatherRainy(EnTest4* this, PlayState* play) {
+    if (((CURRENT_TIME >= CLOCK_TIME((int)recomp_get_config_double("end_hour"), 30)) && (CURRENT_TIME < CLOCK_TIME((int)recomp_get_config_double("end_hour"), 59)) &&
+        (play->envCtx.precipitation[PRECIP_RAIN_MAX] != 0)) ||
+        (play->envCtx.precipitation[PRECIP_SNOW_CUR] != 0)) {
+        gWeatherMode = WEATHER_MODE_CLEAR;
+        play->envCtx.lightningState = LIGHTNING_LAST;
+    }
+
+    if (gWeatherMode == WEATHER_MODE_CLEAR) {
+        this->weather = THREEDAY_WEATHER_CLEAR;
     }
 }
