@@ -65,18 +65,24 @@ static s32 IsRainTime(void) {
 RECOMP_HOOK("Play_Update")
 void more_rain(PlayState* play) {
 
+    if (CURRENT_DAY != 2) return;
 
     if (play->sceneId != lastScene) {
         lastScene = play->sceneId;
 
+        if (!IsRainScene(play->sceneId)) {
+            rainActive = 0;
 
-        rainActive = 0;
+            play->envCtx.precipitation[PRECIP_RAIN_CUR] = 0;
+            play->envCtx.precipitation[PRECIP_RAIN_MAX] = 0;
 
-        play->envCtx.precipitation[PRECIP_RAIN_CUR] = 0;
-        play->envCtx.precipitation[PRECIP_RAIN_MAX] = 0;
-        play->envCtx.stormState = STORM_STATE_OFF;
-        play->envCtx.lightningState = LIGHTNING_OFF;
-        gWeatherMode = WEATHER_MODE_CLEAR;
+            play->envCtx.stormState = STORM_STATE_OFF;
+            play->envCtx.lightningState = LIGHTNING_OFF;
+
+            gWeatherMode = WEATHER_MODE_CLEAR;
+
+            Environment_StopStormNatureAmbience(play);
+        }
     }
 
     if (RainUpgradeModActive) {
@@ -84,7 +90,6 @@ void more_rain(PlayState* play) {
     }
     else {
 
-        // RAIN_INTENSITY_TARGET = (int)recomp_get_config_double("rain_strength");
     }
 
     u8 shouldRain = IsRainScene(play->sceneId) && IsRainTime();
@@ -97,9 +102,10 @@ void more_rain(PlayState* play) {
         }
 
         gWeatherMode = WEATHER_MODE_RAIN;
-        play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
         play->envCtx.lightningState = LIGHTNING_ON;
         play->envCtx.stormState = STORM_STATE_ON;
+
+        play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
     }
 
 
@@ -137,39 +143,33 @@ void more_rain(PlayState* play) {
             gWeatherMode = WEATHER_MODE_CLEAR;
         }
     }
-}
-
-// From old mod All Day Rain
-
-RECOMP_PATCH void EnTest4_UpdateWeatherClear(EnTest4* this, PlayState* play) {
-    if ((CURRENT_DAY == 2) && (CURRENT_TIME >= CLOCK_TIME((int)recomp_get_config_double("start_hour"), 30)) && (CURRENT_TIME < CLOCK_TIME((int)recomp_get_config_double("end_hour"), 59)) &&
-        (play->envCtx.precipitation[PRECIP_SNOW_CUR] == 0)) {
-        gWeatherMode = WEATHER_MODE_RAIN;
-        Environment_PlayStormNatureAmbience(play);
-        play->envCtx.lightningState = LIGHTNING_ON;
-        play->envCtx.precipitation[PRECIP_RAIN_MAX] = RAIN_INTENSITY_TARGET;
-    }
-    else if ((play->envCtx.precipitation[PRECIP_RAIN_MAX] != 0) && ((play->state.frames % 4) == 0)) {
-        play->envCtx.precipitation[PRECIP_RAIN_MAX]--;
-        if (play->envCtx.precipitation[PRECIP_RAIN_MAX] == 8) {
-            Environment_StopStormNatureAmbience(play);
-        }
-    }
-
-    if (gWeatherMode == WEATHER_MODE_RAIN) {
-        this->weather = THREEDAY_WEATHER_RAIN;
-    }
-}
-
-RECOMP_PATCH void EnTest4_UpdateWeatherRainy(EnTest4* this, PlayState* play) {
-    if (((CURRENT_TIME >= CLOCK_TIME((int)recomp_get_config_double("end_hour"), 30)) && (CURRENT_TIME < CLOCK_TIME((int)recomp_get_config_double("end_hour"), 59)) &&
-        (play->envCtx.precipitation[PRECIP_RAIN_MAX] != 0)) ||
-        (play->envCtx.precipitation[PRECIP_SNOW_CUR] != 0)) {
-        gWeatherMode = WEATHER_MODE_CLEAR;
-        play->envCtx.lightningState = LIGHTNING_LAST;
-    }
-
-    if (gWeatherMode == WEATHER_MODE_CLEAR) {
-        this->weather = THREEDAY_WEATHER_CLEAR;
-    }
+//    recomp_printf(
+//        "[RainMod] "
+//        "Scene=%d "
+//        "LastScene=%d "
+//        "Day=%d "
+//        "Time=%d "
+//        "rainScenes=%d "
+//        "RainTime=%d "
+//        "ShouldRain=%d "
+//        "RainActive=%d "
+//        "RainCur=%d "
+//        "RainMax=%d "
+//        "StormState=%d "
+//        "LightningState=%d "
+//        "WeatherMode=%d\n",
+//        play->sceneId,
+//        lastScene,
+//        CURRENT_DAY,
+//        CURRENT_TIME,
+//        rainScenes,
+//        IsRainTime,
+//        shouldRain,
+//        rainActive,
+//        play->envCtx.precipitation[PRECIP_RAIN_CUR],
+//        play->envCtx.precipitation[PRECIP_RAIN_MAX],
+//        play->envCtx.stormState,
+//        play->envCtx.lightningState,
+//        gWeatherMode
+//    );
 }
